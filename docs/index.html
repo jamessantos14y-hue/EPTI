@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EPTI - Evento</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="background-glow"></div>
+
+  <main id="loginScreen" class="screen auth-screen active">
+    <section class="auth-card">
+      <div class="logo-box">
+        <img src="./assets/img/logo-exemplo.png" alt="Logo EPTI" />
+      </div>
+      <p class="tag">Evento EPTI</p>
+      <h1>Entrar na plataforma</h1>
+      <p class="subtitle">Acesse o cronograma, veja os itens disponíveis e escolha seu minicurso.</p>
+
+      <form id="loginForm" class="form">
+        <label>Email institucional</label>
+        <input id="loginEmail" type="email" placeholder="seuemail@aluno.ce.gov.br" required />
+
+        <label>Senha</label>
+        <input id="loginSenha" type="password" placeholder="Digite sua senha" required />
+
+        <button type="submit" class="primary-btn">Entrar</button>
+      </form>
+
+      <p class="switch-text">Ainda não tem conta? <button id="goRegister" type="button">Cadastrar</button></p>
+    </section>
+  </main>
+
+  <main id="registerScreen" class="screen auth-screen">
+    <section class="auth-card wide-card">
+      <div class="logo-box">
+        <img src="./assets/img/logo-exemplo.png" alt="Logo EPTI" />
+      </div>
+      <p class="tag">Cadastro EPTI</p>
+      <h1>Criar cadastro</h1>
+      <p class="subtitle">Preencha seus dados para acessar a tela principal do evento.</p>
+
+      <form id="registerForm" class="form grid-form">
+        <div>
+          <label>Nome completo</label>
+          <input id="registerNome" type="text" placeholder="Digite seu nome" required />
+        </div>
+
+        <div>
+          <label>Turma</label>
+          <select id="registerTurma" required>
+            <option value="">Selecione sua turma</option>
+            <option value="1C">1C</option>
+            <option value="2D">2D</option>
+            <option value="3D">3D</option>
+            <option value="2° Marta Giffoni">2° Marta Giffoni</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Email institucional</label>
+          <input id="registerEmail" type="email" placeholder="seuemail@aluno.ce.gov.br" required />
+        </div>
+
+        <div>
+          <label>Senha</label>
+          <input id="registerSenha" type="password" placeholder="Mínimo 6 caracteres" minlength="6" required />
+        </div>
+
+        <button type="submit" class="primary-btn full">Cadastrar e entrar</button>
+      </form>
+
+      <p class="switch-text">Já tem cadastro? <button id="goLogin" type="button">Fazer login</button></p>
+    </section>
+  </main>
+
+  <main id="homeScreen" class="screen home-screen">
+    <header class="topbar">
+      <div class="brand">
+        <div class="small-logo">
+          <img src="./assets/img/logo-exemplo.png" alt="Logo EPTI" />
+        </div>
+        <div>
+          <strong>EPTI</strong>
+          <span>Programação do Evento</span>
+        </div>
+      </div>
+
+      <div class="user-area">
+        <span id="userName">Usuário</span>
+        <button id="logoutBtn" class="ghost-btn">Sair</button>
+      </div>
+    </header>
+
+    <section class="hero hero-sem-logo">
+      <div class="hero-text">
+        <p class="tag">Bem-vindo(a)</p>
+        <h2>Cronograma oficial, minicursos e vendas do evento</h2>
+        <p>Confira a programação dos dois dias, veja os itens que estarão à venda, escolha seu minicurso e informe o tamanho da sua camisa.</p>
+      </div>
+    </section>
+
+    <section class="content-card">
+      <div class="section-title">
+        <p class="tag">Cronograma</p>
+        <h2>Dia 1</h2>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Horário</th>
+              <th>Atividade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>9:00 - 10:30</td><td>Abertura oficial</td></tr>
+            <tr><td>10:30 - 11:40</td><td>Palestras sobre o tema</td></tr>
+            <tr><td>11:40 - 12:50</td><td>Almoço</td></tr>
+            <tr><td>13:00 - 14:30</td><td>Minicursos</td></tr>
+            <tr><td>14:30 - 14:50</td><td>Intervalo</td></tr>
+            <tr><td>15:00 - 15:50</td><td>Gincana</td></tr>
+            <tr><td>16:00 - 16:20</td><td>Encerramento do dia</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="content-card">
+      <div class="section-title">
+        <p class="tag">Cronograma</p>
+        <h2>Dia 2</h2>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Horário</th>
+              <th>Atividade</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>8:00 - 8:30</td><td>Abertura do segundo dia e dança</td></tr>
+            <tr><td>8:30 - 8:50</td><td>Startup 1, 2 e 3</td></tr>
+            <tr><td>8:50 - 9:10</td><td>Intervalo</td></tr>
+            <tr><td>9:10 - 10:00</td><td>Startups</td></tr>
+            <tr><td>10:00 - 11:40</td><td>Palestra</td></tr>
+            <tr><td>11:40 - 12:50</td><td>Almoço</td></tr>
+            <tr><td>13:00 - 13:10</td><td>Entrega dos certificados</td></tr>
+            <tr><td>13:10 - 14:30</td><td>Futsal</td></tr>
+            <tr><td>14:30 - 14:50</td><td>Intervalo da tarde</td></tr>
+            <tr>
+              <td>14:50 - 16:00</td>
+              <td>Encerramento: agradecimentos, dança e momento de confraternização</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="content-card sales-section">
+      <div class="section-title center">
+        <p class="tag">Vendas</p>
+        <h2>Itens disponíveis</h2>
+        <p>Escolha os itens que deseja comprar. O tamanho da camisa será escolhido dentro do botão de compra.</p>
+      </div>
+
+      <div class="sales-grid">
+        <article class="sale-item">
+          <div class="double-image-box">
+            <div class="image-placeholder">
+              <img src="./assets/img/EPTI 4 KITS/camisa-frente.png" alt="Camisa - frente" />
+            </div>
+
+            <div class="image-placeholder">
+              <img src="./assets/img/EPTI 4 KITS/camisa-verso.png" alt="Camisa - verso" />
+            </div>
+          </div>
+
+          <h3>Camisa</h3>
+          <strong class="item-price">R$ 35,00</strong>
+          <p>Camisa oficial do evento, com imagem da frente e do verso.</p>
+        </article>
+
+        <article class="sale-item">
+          <div class="image-placeholder">
+            <img src="./assets/img/EPTI 4 KITS/bolsa.jpeg" alt="Ecobag" />
+          </div>
+
+          <h3>Ecobag</h3>
+          <strong class="item-price">R$ 35,00</strong>
+          <p>Bolsa ecobag personalizada do evento.</p>
+        </article>
+
+        <article class="sale-item">
+          <div class="image-placeholder">
+            <img src="./assets/img/EPTI 4 KITS/broche.jpeg" alt="Broche" />
+          </div>
+
+          <h3>Broche</h3>
+          <strong class="item-price">R$ 8,00</strong>
+          <p>Broche personalizado do evento.</p>
+        </article>
+
+        <article class="sale-item">
+          <div class="image-placeholder">
+            <img src="./assets/img/EPTI 4 KITS/mochila.png" alt="Mochila" />
+          </div>
+
+          <h3>Mochila</h3>
+          <strong class="item-price">R$ 15,00</strong>
+          <p>Mochila personalizada do evento.</p>
+        </article>
+      </div>
+
+      <div class="buy-area">
+        <button id="openBuyBtn" class="primary-btn big-btn">Comprar</button>
+      </div>
+
+      <div id="myOrders" class="orders-box hidden"></div>
+    </section>
+
+    <section class="content-card mini-section">
+      <div class="section-title center">
+        <p class="tag">Minicursos</p>
+        <h2>Aulas explicativas e práticas</h2>
+        <p>Os minicursos serão aulas explicativas sobre Designer, programação, manutenção de computadores e infraestrutura de redes. Você pode escolher apenas um minicurso.</p>
+      </div>
+
+      <div id="currentCourse" class="chosen-course hidden"></div>
+
+      <button id="openCoursesBtn" class="primary-btn big-btn">Minicursos</button>
+    </section>
+  </main>
+
+  <div id="buyModal" class="modal hidden">
+    <div class="modal-card buy-modal-card">
+      <button id="closeBuyBtn" class="close-btn">×</button>
+      <p class="tag">Comprar itens</p>
+      <h2>Escolha o que deseja comprar</h2>
+      <p class="subtitle">Marque os itens desejados. Se escolher camisa, selecione o tamanho.</p>
+
+      <div class="buy-list">
+        <label class="buy-option">
+          <input type="checkbox" value="camisa" />
+          <span><strong>Camisa</strong><small>R$ 35,00</small></span>
+        </label>
+
+        <label class="buy-option">
+          <input type="checkbox" value="ecobag" />
+          <span><strong>Ecobag / Bolsa</strong><small>R$ 35,00</small></span>
+        </label>
+
+        <label class="buy-option">
+          <input type="checkbox" value="broche" />
+          <span><strong>Broche</strong><small>R$ 8,00</small></span>
+        </label>
+
+        <label class="buy-option">
+          <input type="checkbox" value="mochila" />
+          <span><strong>Mochila</strong><small>R$ 15,00</small></span>
+        </label>
+      </div>
+
+      <div id="shirtSizeArea" class="shirt-size-area hidden">
+        <label>Tamanho da camisa</label>
+        <select id="buyShirtSize">
+          <option value="">Selecione o tamanho</option>
+          <option value="P">P</option>
+          <option value="M">M</option>
+          <option value="G">G</option>
+          <option value="GG">GG</option>
+        </select>
+      </div>
+
+      <div id="buyTotal" class="buy-total">Total: R$ 0,00</div>
+
+      <button id="confirmBuyBtn" class="primary-btn full">Finalizar pedido</button>
+    </div>
+  </div>
+
+  <div id="paymentModal" class="modal hidden">
+    <div class="modal-card payment-card">
+      <button id="closePaymentBtn" class="close-btn">×</button>
+      <p class="tag">Pedido realizado</p>
+      <h2>Envie o comprovante do Pix</h2>
+      <p class="subtitle">Seu pedido foi salvo. Agora envie o comprovante do Pix para este número:</p>
+      <div class="whatsapp-number">+55 88 9927-6593</div>
+      <a id="whatsappLink" class="primary-btn whatsapp-btn" href="https://wa.me/558899276593?text=Oi%2C%20fiz%20um%20pedido%20no%20site%20do%20EPTI%20e%20vou%20enviar%20o%20comprovante%20do%20Pix." target="_blank" rel="noopener">Enviar comprovante pelo WhatsApp</a>
+      <p class="subtitle small-note">Se o botão não abrir, copie o número acima e envie o comprovante manualmente.</p>
+    </div>
+  </div>
+
+  <div id="courseModal" class="modal hidden">
+    <div class="modal-card">
+      <button id="closeCoursesBtn" class="close-btn">×</button>
+      <p class="tag">Escolha seu minicurso</p>
+      <h2>Selecione apenas uma opção</h2>
+      <p class="subtitle">Depois de salvar, sua escolha ficará registrada no banco de dados.</p>
+
+      <div class="course-list">
+        <button data-course="Designer">Designer</button>
+        <button data-course="Programação">Programação</button>
+        <button data-course="Manutenção de computadores">Manutenção de computadores</button>
+        <button data-course="Infraestrutura de redes">Infraestrutura de redes</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
