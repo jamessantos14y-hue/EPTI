@@ -9,7 +9,7 @@ const { createToken, authMiddleware } = require("./auth");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const turmasPermitidas = ["1C", "2D", "3D", "2° Marta Giffoni"];
+const turmasPermitidas = ["1C", "2A", "2D", "3D", "2° Marta Giffoni"];
 
 const minicursosPermitidos = [
   "Designer",
