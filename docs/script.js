@@ -87,6 +87,7 @@ function clearSession() {
   localStorage.removeItem("epti_token");
   localStorage.removeItem("epti_user");
   localStorage.removeItem("epti_minicurso");
+  localStorage.removeItem("epti_tem_pedido");
 
   state.token = null;
   state.user = null;
@@ -137,7 +138,8 @@ function validateInstitutionalEmail(email) {
 }
 
 function getCurrentMinicurso() {
-  const minicurso = state.user?.minicurso || localStorage.getItem("epti_minicurso") || "";
+  const minicurso =
+    state.user?.minicurso || localStorage.getItem("epti_minicurso") || "";
 
   if (!minicursoValido(minicurso)) {
     localStorage.removeItem("epti_minicurso");
@@ -180,10 +182,32 @@ function updateHomeUser() {
   if (!state.user) return;
 
   if (userName) {
-    userName.textContent = `${state.user.nome || "Aluno(a)"} • ${state.user.turma || "Turma"}`;
+    userName.textContent = `${state.user.nome || "Aluno(a)"} • ${
+      state.user.turma || "Turma"
+    }`;
   }
 
   renderCurrentCourse(getCurrentMinicurso());
+  atualizarBotaoComprovante();
+}
+
+function usuarioTemPedido() {
+  return (
+    state.pedidos.length > 0 ||
+    localStorage.getItem("epti_tem_pedido") === "sim"
+  );
+}
+
+function atualizarBotaoComprovante() {
+  const openReceiptBtn = document.getElementById("openReceiptBtn");
+
+  if (!openReceiptBtn) return;
+
+  if (usuarioTemPedido()) {
+    openReceiptBtn.classList.remove("hidden");
+  } else {
+    openReceiptBtn.classList.add("hidden");
+  }
 }
 
 function renderMyOrders(pedidos = []) {
@@ -193,8 +217,12 @@ function renderMyOrders(pedidos = []) {
   if (!pedidos.length) {
     myOrders.classList.add("hidden");
     myOrders.innerHTML = "";
+    atualizarBotaoComprovante();
     return;
   }
+
+  localStorage.setItem("epti_tem_pedido", "sim");
+  atualizarBotaoComprovante();
 
   myOrders.classList.remove("hidden");
   myOrders.innerHTML = `
@@ -202,13 +230,21 @@ function renderMyOrders(pedidos = []) {
     <div class="order-list">
       ${pedidos
         .map((pedido) => {
-          const status = pedido.status_pagamento === "APROVADO" ? "Pagamento aprovado" : "Aguardando aprovação";
-          const tamanho = pedido.tamanho_camisa ? ` • Tam. ${pedido.tamanho_camisa}` : "";
+          const status =
+            pedido.status_pagamento === "APROVADO"
+              ? "Pagamento aprovado"
+              : "Aguardando aprovação";
+          const tamanho = pedido.tamanho_camisa
+            ? ` • Tam. ${pedido.tamanho_camisa}`
+            : "";
+
           return `
             <div class="order-row">
               <span>${pedido.item_nome || pedido.item}${tamanho}</span>
               <strong>${formatMoney((pedido.preco_centavos || 0) / 100)}</strong>
-              <em class="status ${pedido.status_pagamento === "APROVADO" ? "approved" : "pending"}">${status}</em>
+              <em class="status ${
+                pedido.status_pagamento === "APROVADO" ? "approved" : "pending"
+              }">${status}</em>
             </div>
           `;
         })
@@ -223,9 +259,16 @@ async function loadMyOrders() {
   try {
     const data = await apiFetch("/pedidos/me");
     state.pedidos = data.pedidos || [];
+
+    if (state.pedidos.length > 0) {
+      localStorage.setItem("epti_tem_pedido", "sim");
+    }
+
     renderMyOrders(state.pedidos);
+    atualizarBotaoComprovante();
   } catch (error) {
     console.error(error);
+    atualizarBotaoComprovante();
   }
 }
 
@@ -240,7 +283,11 @@ async function restoreSession() {
 
     const minicursoCache = localStorage.getItem("epti_minicurso");
 
-    if (!data.user.minicurso && minicursoCache && minicursoValido(minicursoCache)) {
+    if (
+      !data.user.minicurso &&
+      minicursoCache &&
+      minicursoValido(minicursoCache)
+    ) {
       data.user.minicurso = minicursoCache;
     }
 
@@ -320,22 +367,35 @@ document.getElementById("registerForm").addEventListener("submit", async (event)
 
 const buyModal = document.getElementById("buyModal");
 const paymentModal = document.getElementById("paymentModal");
+const receiptModal = document.getElementById("receiptModal");
+
 const openBuyBtn = document.getElementById("openBuyBtn");
 const closeBuyBtn = document.getElementById("closeBuyBtn");
+
 const closePaymentBtn = document.getElementById("closePaymentBtn");
+const backFromPaymentBtn = document.getElementById("backFromPaymentBtn");
+
+const openReceiptBtn = document.getElementById("openReceiptBtn");
+const closeReceiptBtn = document.getElementById("closeReceiptBtn");
+
 const confirmBuyBtn = document.getElementById("confirmBuyBtn");
 const shirtSizeArea = document.getElementById("shirtSizeArea");
 const buyShirtSize = document.getElementById("buyShirtSize");
 const buyTotal = document.getElementById("buyTotal");
 
 function getSelectedItems() {
-  return Array.from(document.querySelectorAll(".buy-option input:checked")).map((input) => input.value);
+  return Array.from(document.querySelectorAll(".buy-option input:checked")).map(
+    (input) => input.value
+  );
 }
 
 function updateBuyModal() {
   const selected = getSelectedItems();
   const hasCamisa = selected.includes("camisa");
-  const total = selected.reduce((sum, item) => sum + (ITENS[item]?.preco || 0), 0);
+  const total = selected.reduce(
+    (sum, item) => sum + (ITENS[item]?.preco || 0),
+    0
+  );
 
   if (shirtSizeArea) {
     shirtSizeArea.classList.toggle("hidden", !hasCamisa);
@@ -358,18 +418,45 @@ if (openBuyBtn && buyModal) {
 }
 
 if (closeBuyBtn && buyModal) {
-  closeBuyBtn.addEventListener("click", () => buyModal.classList.add("hidden"));
+  closeBuyBtn.addEventListener("click", () => {
+    buyModal.classList.add("hidden");
+  });
 }
 
 if (closePaymentBtn && paymentModal) {
-  closePaymentBtn.addEventListener("click", () => paymentModal.classList.add("hidden"));
+  closePaymentBtn.addEventListener("click", () => {
+    paymentModal.classList.add("hidden");
+    atualizarBotaoComprovante();
+  });
 }
 
-[buyModal, paymentModal].forEach((modal) => {
+if (backFromPaymentBtn && paymentModal) {
+  backFromPaymentBtn.addEventListener("click", () => {
+    paymentModal.classList.add("hidden");
+    showScreen("home");
+    atualizarBotaoComprovante();
+  });
+}
+
+if (openReceiptBtn && receiptModal) {
+  openReceiptBtn.addEventListener("click", () => {
+    receiptModal.classList.remove("hidden");
+  });
+}
+
+if (closeReceiptBtn && receiptModal) {
+  closeReceiptBtn.addEventListener("click", () => {
+    receiptModal.classList.add("hidden");
+  });
+}
+
+[buyModal, paymentModal, receiptModal].forEach((modal) => {
   if (!modal) return;
+
   modal.addEventListener("click", (event) => {
     if (event.target === modal) {
       modal.classList.add("hidden");
+      atualizarBotaoComprovante();
     }
   });
 });
@@ -403,16 +490,26 @@ if (confirmBuyBtn) {
       });
 
       state.pedidos = data.pedidos || [];
+
+      localStorage.setItem("epti_tem_pedido", "sim");
+
       renderMyOrders(state.pedidos);
+      atualizarBotaoComprovante();
 
       document.querySelectorAll(".buy-option input").forEach((input) => {
         input.checked = false;
       });
+
       if (buyShirtSize) buyShirtSize.value = "";
+
       updateBuyModal();
 
       buyModal.classList.add("hidden");
+
+      // Agora mostra somente a chave Pix.
+      // O WhatsApp aparece depois no botão "Enviar comprovante".
       paymentModal.classList.remove("hidden");
+
       toast("Pedido salvo com sucesso!");
     } catch (error) {
       toast(error.message, "error");

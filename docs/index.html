@@ -221,6 +221,7 @@
 
       <div class="buy-area">
         <button id="openBuyBtn" class="primary-btn big-btn">Comprar</button>
+        <button id="openReceiptBtn" class="primary-btn big-btn receipt-btn hidden">Enviar comprovante</button>
       </div>
 
       <div id="myOrders" class="orders-box hidden"></div>
@@ -288,11 +289,42 @@
   <div id="paymentModal" class="modal hidden">
     <div class="modal-card payment-card">
       <button id="closePaymentBtn" class="close-btn">×</button>
-      <p class="tag">Pedido realizado</p>
+      <p class="tag">Pagamento Pix</p>
+      <h2>Pedido finalizado</h2>
+      <p class="subtitle">Agora faça o pagamento usando a chave Pix abaixo.</p>
+
+      <div class="pix-box">
+        <span>Chave Pix</span>
+        <strong>renelvinss@gmail.com</strong>
+      </div>
+
+      <p class="subtitle small-note">
+        Depois de pagar, volte para a tela principal e clique em <strong>Enviar comprovante</strong>.
+      </p>
+
+      <button id="backFromPaymentBtn" class="primary-btn full">Voltar para tela principal</button>
+    </div>
+  </div>
+
+  <div id="receiptModal" class="modal hidden">
+    <div class="modal-card payment-card">
+      <button id="closeReceiptBtn" class="close-btn">×</button>
+      <p class="tag">Enviar comprovante</p>
       <h2>Envie o comprovante do Pix</h2>
-      <p class="subtitle">Seu pedido foi salvo. Agora envie o comprovante do Pix para este número:</p>
+      <p class="subtitle">Envie o comprovante do pagamento pelo WhatsApp abaixo.</p>
+
       <div class="whatsapp-number">+55 88 9927-6593</div>
-      <a id="whatsappLink" class="primary-btn whatsapp-btn" href="https://wa.me/558899276593?text=Oi%2C%20fiz%20um%20pedido%20no%20site%20do%20EPTI%20e%20vou%20enviar%20o%20comprovante%20do%20Pix." target="_blank" rel="noopener">Enviar comprovante pelo WhatsApp</a>
+
+      <a
+        id="whatsappLink"
+        class="primary-btn whatsapp-btn"
+        href="https://wa.me/558899276593?text=Oi%2C%20fiz%20um%20pedido%20no%20site%20do%20EPTI%20e%20vou%20enviar%20o%20comprovante%20do%20Pix."
+        target="_blank"
+        rel="noopener"
+      >
+        Enviar comprovante pelo WhatsApp
+      </a>
+
       <p class="subtitle small-note">Se o botão não abrir, copie o número acima e envie o comprovante manualmente.</p>
     </div>
   </div>
