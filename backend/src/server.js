@@ -119,6 +119,80 @@ async function listarPedidosDoUsuario(usuarioId) {
   );
 }
 
+function normalizarBuscaNome(valor) {
+  return String(valor || "").trim();
+}
+
+function normalizarStatusFiltro(valor) {
+  const status = String(valor || "").trim().toLowerCase();
+
+  if (status === "pendente" || status === "pendentes" || status === "pendente primeiro") {
+    return "PENDENTE";
+  }
+
+  if (status === "aprovado" || status === "aprovados" || status === "aprovado primeiro") {
+    return "APROVADO";
+  }
+
+  return "";
+}
+
+function montarUrlAdminComFiltros(buscaNome, statusPrioritario) {
+  const params = new URLSearchParams();
+
+  if (buscaNome) params.set("q", buscaNome);
+  if (statusPrioritario) params.set("status", statusPrioritario.toLowerCase());
+
+  const query = params.toString();
+  return query ? `/admin?${query}` : "/admin";
+}
+
+function montarOrderByPedidos(buscaNome, statusPrioritario, params) {
+  const criterios = [];
+
+  if (buscaNome) {
+    params.push(`%${buscaNome}%`);
+    criterios.push(`CASE WHEN u.nome ILIKE $${params.length} THEN 0 ELSE 1 END`);
+  }
+
+  if (statusPrioritario) {
+    params.push(statusPrioritario);
+    criterios.push(`CASE WHEN p.status_pagamento = $${params.length} THEN 0 ELSE 1 END`);
+  }
+
+  criterios.push("u.turma ASC");
+  criterios.push("p.id DESC");
+
+  return criterios.join(", ");
+}
+
+async function buscarPedidosAdmin({ buscaNome = "", statusPrioritario = "" } = {}) {
+  const params = [];
+  const orderBy = montarOrderByPedidos(buscaNome, statusPrioritario, params);
+
+  return all(
+    `
+    SELECT
+      p.id,
+      p.usuario_id,
+      u.nome,
+      u.turma,
+      u.email,
+      p.item,
+      p.item_nome,
+      p.tamanho_camisa,
+      p.preco_centavos,
+      p.status_pagamento,
+      p.criado_em,
+      p.aprovado_em
+    FROM pedidos p
+    JOIN usuarios u ON u.id = p.usuario_id
+    ORDER BY ${orderBy}
+    `,
+    params
+  );
+}
+
 app.get("/api/health", (req, res) => {
   res.json({
     status: "UP",
@@ -162,28 +236,19 @@ app.get("/api/admin/usuarios", async (req, res) => {
 
 app.get("/api/admin/pedidos", async (req, res) => {
   try {
-    const pedidos = await all(
-      `
-      SELECT
-        p.id,
-        p.usuario_id,
-        u.nome,
-        u.turma,
-        u.email,
-        p.item,
-        p.item_nome,
-        p.tamanho_camisa,
-        p.preco_centavos,
-        p.status_pagamento,
-        p.criado_em,
-        p.aprovado_em
-      FROM pedidos p
-      JOIN usuarios u ON u.id = p.usuario_id
-      ORDER BY p.id DESC
-      `
-    );
+    const buscaNome = normalizarBuscaNome(req.query.q);
+    const statusPrioritario = normalizarStatusFiltro(req.query.status);
+    const pedidos = await buscarPedidosAdmin({ buscaNome, statusPrioritario });
 
-    return res.json({ total: pedidos.length, pedidos });
+    return res.json({
+      total: pedidos.length,
+      filtros: {
+        busca: buscaNome,
+        status_prioritario: statusPrioritario || null,
+        ordenacao_padrao: "turma e mais recentes",
+      },
+      pedidos,
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Erro ao listar pedidos." });
@@ -221,6 +286,37 @@ app.post("/api/admin/pedidos/:id/aprovar", async (req, res) => {
   }
 });
 
+app.post("/api/admin/pedidos/:id/desaprovar", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: "Pedido inválido." });
+    }
+
+    const pedido = await get("SELECT id FROM pedidos WHERE id = $1", [id]);
+
+    if (!pedido) {
+      return res.status(404).json({ message: "Pedido não encontrado." });
+    }
+
+    await run(
+      `
+      UPDATE pedidos
+      SET status_pagamento = 'PENDENTE',
+          aprovado_em = NULL
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    return res.json({ message: "Pagamento voltou para pendente com sucesso." });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Erro ao desaprovar pagamento." });
+  }
+});
+
 app.post("/admin/pedidos/:id/aprovar", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -237,15 +333,41 @@ app.post("/admin/pedidos/:id/aprovar", async (req, res) => {
       );
     }
 
-    return res.redirect("/admin");
+    return res.redirect(req.get("referer") || "/admin");
   } catch (error) {
     console.error(error);
     return res.status(500).send("Erro ao aprovar pagamento.");
   }
 });
 
+app.post("/admin/pedidos/:id/desaprovar", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (Number.isInteger(id) && id > 0) {
+      await run(
+        `
+        UPDATE pedidos
+        SET status_pagamento = 'PENDENTE',
+            aprovado_em = NULL
+        WHERE id = $1
+        `,
+        [id]
+      );
+    }
+
+    return res.redirect(req.get("referer") || "/admin");
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send("Erro ao desaprovar pagamento.");
+  }
+});
+
 app.get("/admin", async (req, res) => {
   try {
+    const buscaNome = normalizarBuscaNome(req.query.q);
+    const statusPrioritario = normalizarStatusFiltro(req.query.status);
+
     const usuarios = await all(
       `
       SELECT
@@ -257,33 +379,21 @@ app.get("/admin", async (req, res) => {
         criado_em,
         minicurso_atualizado_em
       FROM usuarios
-      ORDER BY id DESC
+      ORDER BY turma ASC, id DESC
       `
     );
 
-    const pedidos = await all(
-      `
-      SELECT
-        p.id,
-        p.usuario_id,
-        u.nome,
-        u.turma,
-        u.email,
-        p.item_nome,
-        p.tamanho_camisa,
-        p.preco_centavos,
-        p.status_pagamento,
-        p.criado_em,
-        p.aprovado_em
-      FROM pedidos p
-      JOIN usuarios u ON u.id = p.usuario_id
-      ORDER BY p.id DESC
-      `
-    );
+    const pedidos = await buscarPedidosAdmin({ buscaNome, statusPrioritario });
+
+    const totalPendentes = pedidos.filter((pedido) => pedido.status_pagamento !== "APROVADO").length;
+    const totalAprovados = pedidos.filter((pedido) => pedido.status_pagamento === "APROVADO").length;
 
     const linhasPedidos = pedidos
       .map((pedido) => {
         const aprovado = pedido.status_pagamento === "APROVADO";
+        const statusLabel = aprovado ? "Aprovado" : "Pendente";
+        const statusClass = aprovado ? "ok" : "wait";
+
         return `
           <tr>
             <td>${escaparHtml(pedido.id)}</td>
@@ -293,11 +403,15 @@ app.get("/admin", async (req, res) => {
             <td>${escaparHtml(pedido.item_nome)}</td>
             <td>${escaparHtml(pedido.tamanho_camisa || "-")}</td>
             <td>${escaparHtml(formatarPrecoCentavos(pedido.preco_centavos))}</td>
-            <td><span class="badge ${aprovado ? "ok" : "wait"}">${aprovado ? "Aprovado" : "Pendente"}</span></td>
+            <td><span class="badge ${statusClass}">${statusLabel}</span></td>
             <td>${escaparHtml(formatarDataBrasil(pedido.criado_em))}</td>
             <td>${escaparHtml(formatarDataBrasil(pedido.aprovado_em))}</td>
             <td>
-              ${aprovado ? "-" : `
+              ${aprovado ? `
+                <form method="POST" action="/admin/pedidos/${pedido.id}/desaprovar">
+                  <button class="danger" type="submit">Voltar para pendente</button>
+                </form>
+              ` : `
                 <form method="POST" action="/admin/pedidos/${pedido.id}/aprovar">
                   <button type="submit">Aprovar pagamento</button>
                 </form>
@@ -324,6 +438,9 @@ app.get("/admin", async (req, res) => {
       )
       .join("");
 
+    const statusSelecionado = statusPrioritario.toLowerCase();
+    const apiPedidosUrl = `/api/admin/pedidos${montarUrlAdminComFiltros(buscaNome, statusPrioritario).replace("/admin", "")}`;
+
     res.setHeader("Content-Type", "text/html; charset=utf-8");
 
     return res.send(`
@@ -334,7 +451,7 @@ app.get("/admin", async (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Admin EPTI</title>
         <style>
-          :root{--bg:#050609;--card:rgba(12,15,23,.96);--text:#f6f7fb;--muted:#a9afc3;--line:rgba(255,255,255,.14);--primary:#ff2f4f;--primary2:#ff8a00;--ok:#2ee6a6;--wait:#ffd166}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,sans-serif;color:var(--text);background:radial-gradient(circle at top,#3a0710 0%,var(--bg) 55%);padding:24px}.card{max-width:1450px;margin:0 auto 24px;border:1px solid var(--line);border-radius:22px;background:var(--card);box-shadow:0 20px 70px rgba(0,0,0,.45);overflow:hidden}header{padding:24px;border-bottom:1px solid var(--line)}h1,h2{margin:0 0 8px}p{margin:0;color:var(--muted)}.actions{display:flex;gap:10px;flex-wrap:wrap;padding:16px 24px;border-bottom:1px solid var(--line)}a,button{border:0;border-radius:12px;padding:11px 14px;cursor:pointer;text-decoration:none;color:#fff;font-weight:800;background:linear-gradient(90deg,var(--primary),var(--primary2))}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:1120px}th,td{padding:14px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}th{color:#ffe7ea;background:rgba(255,47,79,.18)}tr:hover td{background:rgba(255,255,255,.04)}.empty{padding:24px;color:var(--muted)}.count{color:var(--primary);font-weight:800}.hint{margin-top:8px;font-size:.9rem;color:var(--muted)}.badge{display:inline-block;border-radius:999px;padding:7px 10px;font-weight:800;font-size:.82rem}.badge.ok{color:#062317;background:rgba(46,230,166,.9)}.badge.wait{color:#2a1b00;background:rgba(255,209,102,.95)}form{margin:0}@media(max-width:650px){body{padding:12px}header{padding:18px}h1{font-size:1.5rem}.actions{padding:14px 18px}a,button{width:100%;text-align:center}th,td{padding:12px;font-size:.9rem}}
+          :root{--bg:#050609;--card:rgba(12,15,23,.96);--text:#f6f7fb;--muted:#a9afc3;--line:rgba(255,255,255,.14);--primary:#ff2f4f;--primary2:#ff8a00;--ok:#2ee6a6;--wait:#ffd166;--danger:#ff5964}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Arial,sans-serif;color:var(--text);background:radial-gradient(circle at top,#3a0710 0%,var(--bg) 55%);padding:24px}.card{max-width:1450px;margin:0 auto 24px;border:1px solid var(--line);border-radius:22px;background:var(--card);box-shadow:0 20px 70px rgba(0,0,0,.45);overflow:hidden}header{padding:24px;border-bottom:1px solid var(--line)}h1,h2{margin:0 0 8px}p{margin:0;color:var(--muted)}.actions{display:flex;gap:10px;flex-wrap:wrap;padding:16px 24px;border-bottom:1px solid var(--line)}.filters{display:grid;grid-template-columns:2fr 1fr auto auto;gap:12px;align-items:end;padding:16px 24px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.025)}.field label{display:block;margin:0 0 7px;color:var(--muted);font-size:.88rem;font-weight:800}.field input,.field select{width:100%;min-height:43px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--text);background:rgba(255,255,255,.08);outline:none}.field option{color:#111}.active-filters{padding:0 24px 16px;color:var(--muted);font-size:.92rem}.active-filters strong{color:#fff}a,button{border:0;border-radius:12px;padding:11px 14px;cursor:pointer;text-decoration:none;color:#fff;font-weight:800;background:linear-gradient(90deg,var(--primary),var(--primary2))}.secondary{display:inline-block;background:rgba(255,255,255,.08);border:1px solid var(--line)}button.danger{background:linear-gradient(90deg,#ff5964,#a91d2b)}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:1120px}th,td{padding:14px 16px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}th{color:#ffe7ea;background:rgba(255,47,79,.18)}tr:hover td{background:rgba(255,255,255,.04)}.empty{padding:24px;color:var(--muted)}.count{color:var(--primary);font-weight:800}.hint{margin-top:8px;font-size:.9rem;color:var(--muted)}.badge{display:inline-block;border-radius:999px;padding:7px 10px;font-weight:800;font-size:.82rem}.badge.ok{color:#062317;background:rgba(46,230,166,.9)}.badge.wait{color:#2a1b00;background:rgba(255,209,102,.95)}.stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.stat{padding:8px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-weight:800}.stat.ok{color:var(--ok)}.stat.wait{color:var(--wait)}form{margin:0}@media(max-width:760px){body{padding:12px}header{padding:18px}h1{font-size:1.5rem}.actions{padding:14px 18px}.filters{grid-template-columns:1fr;padding:14px 18px}a,button{width:100%;text-align:center}th,td{padding:12px;font-size:.9rem}.active-filters{padding:0 18px 14px}}
         </style>
       </head>
       <body>
@@ -342,11 +459,41 @@ app.get("/admin", async (req, res) => {
           <header>
             <h1>Admin EPTI - Pedidos</h1>
             <p>Pedidos realizados pelos alunos. Total: <span class="count">${pedidos.length}</span></p>
-            <p class="hint">Use o botão “Aprovar pagamento” depois de conferir o comprovante Pix manualmente.</p>
+            <p class="hint">Padrão: organizado por sala/turma e, dentro de cada sala, pelos pedidos mais recentes.</p>
+            <div class="stats">
+              <span class="stat wait">Pendentes: ${totalPendentes}</span>
+              <span class="stat ok">Aprovados: ${totalAprovados}</span>
+            </div>
           </header>
+
+          <form class="filters" method="GET" action="/admin">
+            <div class="field">
+              <label for="q">Buscar por nome</label>
+              <input id="q" name="q" type="search" value="${escaparHtml(buscaNome)}" placeholder="Digite o nome do aluno" />
+            </div>
+
+            <div class="field">
+              <label for="status">Organizar por status</label>
+              <select id="status" name="status">
+                <option value="" ${!statusSelecionado ? "selected" : ""}>Padrão: sala e recentes</option>
+                <option value="pendente" ${statusSelecionado === "pendente" ? "selected" : ""}>Pendentes primeiro</option>
+                <option value="aprovado" ${statusSelecionado === "aprovado" ? "selected" : ""}>Aprovados primeiro</option>
+              </select>
+            </div>
+
+            <button type="submit">Aplicar</button>
+            <a class="secondary" href="/admin">Limpar</a>
+          </form>
+
+          <div class="active-filters">
+            ${buscaNome ? `Busca ativa: <strong>${escaparHtml(buscaNome)}</strong>. ` : ""}
+            ${statusPrioritario ? `Filtro ativo: <strong>${statusPrioritario === "PENDENTE" ? "Pendentes primeiro" : "Aprovados primeiro"}</strong>. ` : ""}
+            Os resultados buscados aparecem primeiro, sem esconder os demais.
+          </div>
+
           <div class="actions">
             <button onclick="location.reload()">Atualizar</button>
-            <a href="/api/admin/pedidos" target="_blank">Ver pedidos em JSON</a>
+            <a href="${apiPedidosUrl}" target="_blank">Ver pedidos em JSON</a>
             <a href="/api/admin/usuarios" target="_blank">Ver usuários em JSON</a>
           </div>
           ${
@@ -360,6 +507,7 @@ app.get("/admin", async (req, res) => {
           <header>
             <h2>Usuários cadastrados</h2>
             <p>Total: <span class="count">${usuarios.length}</span></p>
+            <p class="hint">Também organizado por sala/turma e cadastros mais recentes.</p>
           </header>
           ${
             usuarios.length
