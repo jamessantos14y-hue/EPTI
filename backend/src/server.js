@@ -3,7 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
-const { run, get, all } = require("./db");
+const { run, get, all, transaction } = require("./db");
 const { createToken, authMiddleware } = require("./auth");
 
 const app = express();
@@ -11,12 +11,16 @@ const PORT = process.env.PORT || 3000;
 
 const turmasPermitidas = ["1C", "2A", "2D", "3D", "2° Marta Giffoni"];
 
-const minicursosPermitidos = [
-  "Designer",
-  "Programação",
-  "Manutenção de computadores",
-  "Infraestrutura de redes",
+const minicursosConfig = [
+  { nome: "Programação", limite: 30 },
+  { nome: "Infraestrutura", limite: 25 },
+  { nome: "Design", limite: 30 },
+  { nome: "Manutenção de celulares", limite: 25 },
+  { nome: "Eletrônica", limite: 25 },
 ];
+
+const minicursosPermitidos = minicursosConfig.map((curso) => curso.nome);
+const limitesMinicursos = Object.fromEntries(minicursosConfig.map((curso) => [curso.nome, curso.limite]));
 
 const tamanhosCamisaPermitidos = ["P", "M", "G", "GG"];
 
@@ -43,6 +47,47 @@ function normalizarEmail(email) {
 
 function validarEmailInstitucional(email) {
   return normalizarEmail(email).endsWith("@aluno.ce.gov.br");
+}
+
+function normalizarTurma(valor) {
+  return String(valor || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[º°]/g, "");
+}
+
+function turmaSemMinicurso(turma) {
+  return normalizarTurma(turma) === "2A";
+}
+
+async function listarStatusMinicursos() {
+  const contagens = await all(
+    `
+    SELECT minicurso, COUNT(*)::int AS inscritos
+    FROM usuarios
+    WHERE minicurso = ANY($1)
+    GROUP BY minicurso
+    `,
+    [minicursosPermitidos]
+  );
+
+  const inscritosPorCurso = Object.fromEntries(
+    contagens.map((row) => [row.minicurso, Number(row.inscritos || 0)])
+  );
+
+  return minicursosConfig.map((curso) => {
+    const inscritos = inscritosPorCurso[curso.nome] || 0;
+    const vagas_restantes = Math.max(curso.limite - inscritos, 0);
+
+    return {
+      nome: curso.nome,
+      limite: curso.limite,
+      inscritos,
+      vagas_restantes,
+      esgotado: vagas_restantes <= 0,
+    };
+  });
 }
 
 function publicUser(user) {
@@ -584,8 +629,14 @@ app.get("/api/me", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/api/minicursos", (req, res) => {
-  res.json({ minicursos: minicursosPermitidos });
+app.get("/api/minicursos", async (req, res) => {
+  try {
+    const cursos = await listarStatusMinicursos();
+    return res.json({ minicursos: cursos });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Erro ao listar minicursos." });
+  }
 });
 
 app.get("/api/itens", (req, res) => {
@@ -597,13 +648,71 @@ async function salvarOuMudarMinicurso(req, res) {
     const minicurso = String(req.body.minicurso || "").trim();
     if (!minicursosPermitidos.includes(minicurso)) return res.status(400).json({ message: "Minicurso inválido." });
 
-    const user = await get("SELECT * FROM usuarios WHERE id = $1", [req.auth.id]);
-    if (!user) return res.status(404).json({ message: "Usuário não encontrado." });
+    const resultado = await transaction(async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(20260520)");
 
-    await run("UPDATE usuarios SET minicurso = $1, minicurso_atualizado_em = CURRENT_TIMESTAMP WHERE id = $2", [minicurso, user.id]);
-    const updatedUser = await get("SELECT * FROM usuarios WHERE id = $1", [user.id]);
+      const userResult = await client.query("SELECT * FROM usuarios WHERE id = $1 FOR UPDATE", [req.auth.id]);
+      const user = userResult.rows[0];
 
-    return res.json({ message: user.minicurso ? "Minicurso alterado com sucesso." : "Minicurso salvo com sucesso.", user: publicUser(updatedUser) });
+      if (!user) {
+        return { status: 404, body: { message: "Usuário não encontrado." } };
+      }
+
+      if (turmaSemMinicurso(user.turma)) {
+        return {
+          status: 403,
+          body: { message: "Alunos da turma 2°A não podem escolher minicurso." },
+        };
+      }
+
+      if (user.minicurso === minicurso) {
+        return {
+          status: 200,
+          body: {
+            message: "Você já está inscrito neste minicurso.",
+            user: publicUser(user),
+            minicursos: await listarStatusMinicursos(),
+          },
+        };
+      }
+
+      const limite = limitesMinicursos[minicurso];
+      const countResult = await client.query(
+        "SELECT COUNT(*)::int AS inscritos FROM usuarios WHERE minicurso = $1 AND id <> $2",
+        [minicurso, user.id]
+      );
+      const inscritos = Number(countResult.rows[0]?.inscritos || 0);
+
+      if (inscritos >= limite) {
+        return {
+          status: 409,
+          body: {
+            message: `O limite de inscrições para ${minicurso} acabou.`,
+            minicurso,
+            limite,
+            inscritos,
+          },
+        };
+      }
+
+      await client.query(
+        "UPDATE usuarios SET minicurso = $1, minicurso_atualizado_em = CURRENT_TIMESTAMP WHERE id = $2",
+        [minicurso, user.id]
+      );
+
+      const updatedResult = await client.query("SELECT * FROM usuarios WHERE id = $1", [user.id]);
+      const updatedUser = updatedResult.rows[0];
+
+      return {
+        status: 200,
+        body: {
+          message: user.minicurso ? "Minicurso alterado com sucesso." : "Minicurso salvo com sucesso.",
+          user: publicUser(updatedUser),
+        },
+      };
+    });
+
+    return res.status(resultado.status).json(resultado.body);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Erro ao salvar minicurso." });

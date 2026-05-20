@@ -81,8 +81,25 @@ initDb().catch((error) => {
   console.error("Erro ao inicializar banco PostgreSQL:", error);
 });
 
+async function transaction(callback) {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    const result = await callback(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   run,
   get,
   all,
+  transaction,
 };

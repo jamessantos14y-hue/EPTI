@@ -2,10 +2,19 @@
 const API_URL = "https://epti-0hm2.onrender.com/api";
 
 const MINICURSOS_PERMITIDOS = [
-  "Designer",
   "Programação",
-  "Manutenção de computadores",
-  "Infraestrutura de redes",
+  "Infraestrutura",
+  "Design",
+  "Manutenção de celulares",
+  "Eletrônica",
+];
+
+const MINICURSOS_FALLBACK = [
+  { nome: "Programação", limite: 30, inscritos: 0, vagas_restantes: 30, esgotado: false },
+  { nome: "Infraestrutura", limite: 25, inscritos: 0, vagas_restantes: 25, esgotado: false },
+  { nome: "Design", limite: 30, inscritos: 0, vagas_restantes: 30, esgotado: false },
+  { nome: "Manutenção de celulares", limite: 25, inscritos: 0, vagas_restantes: 25, esgotado: false },
+  { nome: "Eletrônica", limite: 25, inscritos: 0, vagas_restantes: 25, esgotado: false },
 ];
 
 const TAMANHOS_CAMISA_PERMITIDOS = ["P", "M", "G", "GG"];
@@ -27,6 +36,7 @@ const state = {
   token: localStorage.getItem("epti_token"),
   user: JSON.parse(localStorage.getItem("epti_user") || "null"),
   pedidos: [],
+  minicursos: MINICURSOS_FALLBACK,
 };
 
 function showScreen(name) {
@@ -36,6 +46,18 @@ function showScreen(name) {
 
 function minicursoValido(minicurso) {
   return MINICURSOS_PERMITIDOS.includes(minicurso);
+}
+
+function normalizarTurma(turma) {
+  return String(turma || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[º°]/g, "");
+}
+
+function usuarioSemMinicurso() {
+  return normalizarTurma(state.user?.turma) === "2A";
 }
 
 function tamanhoCamisaValido(tamanho) {
@@ -81,6 +103,7 @@ function saveSession(token, user) {
   updateHomeUser();
   showScreen("home");
   loadMyOrders();
+  loadMinicursos();
 }
 
 function clearSession() {
@@ -161,6 +184,18 @@ function renderCurrentCourse(minicurso) {
 
   if (!currentCourse || !openCoursesBtn) return;
 
+  if (usuarioSemMinicurso()) {
+    currentCourse.classList.remove("hidden");
+    currentCourse.innerHTML = `
+      <strong>Minicurso indisponível:</strong>
+      <span>A turma 2°A não participa dos minicursos.</span>
+    `;
+    openCoursesBtn.classList.add("hidden");
+    return;
+  }
+
+  openCoursesBtn.classList.remove("hidden");
+
   if (minicurso && minicursoValido(minicurso)) {
     currentCourse.classList.remove("hidden");
     currentCourse.innerHTML = `
@@ -176,6 +211,60 @@ function renderCurrentCourse(minicurso) {
   }
 }
 
+function renderCourseOptions() {
+  const courseList = document.getElementById("courseList");
+  if (!courseList) return;
+
+  const escolhido = getCurrentMinicurso();
+  const cursos = Array.isArray(state.minicursos) && state.minicursos.length
+    ? state.minicursos
+    : MINICURSOS_FALLBACK;
+
+  courseList.innerHTML = cursos
+    .map((curso) => {
+      const nome = curso.nome || curso;
+      const limite = Number(curso.limite || 25);
+      const inscritos = Number(curso.inscritos || 0);
+      const vagas = Math.max(Number(curso.vagas_restantes ?? limite - inscritos), 0);
+      const esgotado = Boolean(curso.esgotado || vagas <= 0);
+      const selecionado = escolhido === nome;
+      const disabled = esgotado && !selecionado;
+      const status = selecionado
+        ? "Você está inscrito aqui"
+        : disabled
+          ? "Limite acabou"
+          : `${vagas} vaga${vagas === 1 ? "" : "s"} disponível${vagas === 1 ? "" : "is"} de ${limite}`;
+
+      return `
+        <button
+          type="button"
+          data-course="${nome}"
+          class="${disabled ? "course-full" : ""} ${selecionado ? "course-selected" : ""}"
+          ${disabled ? "disabled" : ""}
+        >
+          <strong>${nome}</strong>
+          <span>${status}</span>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+async function loadMinicursos() {
+  try {
+    const data = await apiFetch("/minicursos");
+
+    if (Array.isArray(data.minicursos)) {
+      state.minicursos = data.minicursos;
+      renderCourseOptions();
+    }
+  } catch (error) {
+    console.error(error);
+    state.minicursos = MINICURSOS_FALLBACK;
+    renderCourseOptions();
+  }
+}
+
 function updateHomeUser() {
   const userName = document.getElementById("userName");
 
@@ -188,6 +277,7 @@ function updateHomeUser() {
   }
 
   renderCurrentCourse(getCurrentMinicurso());
+  renderCourseOptions();
   atualizarBotaoComprovante();
 }
 
@@ -524,7 +614,13 @@ if (confirmBuyBtn) {
 
 const courseModal = document.getElementById("courseModal");
 
-document.getElementById("openCoursesBtn").addEventListener("click", () => {
+document.getElementById("openCoursesBtn").addEventListener("click", async () => {
+  if (usuarioSemMinicurso()) {
+    toast("A turma 2°A não participa dos minicursos.", "error");
+    return;
+  }
+
+  await loadMinicursos();
   courseModal.classList.remove("hidden");
 });
 
@@ -538,44 +634,57 @@ courseModal.addEventListener("click", (event) => {
   }
 });
 
-document.querySelectorAll(".course-list button").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const minicurso = button.dataset.course;
+document.getElementById("courseList")?.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-course]");
+  if (!button || button.disabled) return;
 
-    if (!minicurso || !minicursoValido(minicurso)) {
-      toast("Escolha um minicurso válido.", "error");
-      return;
-    }
+  const minicurso = button.dataset.course;
 
-    try {
-      const data = await apiFetch("/minicursos/escolher", {
-        method: "POST",
-        body: JSON.stringify({ minicurso }),
-      });
+  if (usuarioSemMinicurso()) {
+    toast("A turma 2°A não participa dos minicursos.", "error");
+    return;
+  }
 
-      const userAtualizado = data.user || {
-        ...state.user,
-        minicurso,
-      };
+  if (!minicurso || !minicursoValido(minicurso)) {
+    toast("Escolha um minicurso válido.", "error");
+    return;
+  }
 
-      userAtualizado.minicurso = minicurso;
+  try {
+    button.disabled = true;
+    button.classList.add("course-loading");
 
-      localStorage.setItem("epti_minicurso", minicurso);
-      localStorage.setItem("epti_user", JSON.stringify(userAtualizado));
+    const data = await apiFetch("/minicursos/escolher", {
+      method: "POST",
+      body: JSON.stringify({ minicurso }),
+    });
 
-      state.user = userAtualizado;
+    const userAtualizado = data.user || {
+      ...state.user,
+      minicurso,
+    };
 
-      renderCurrentCourse(minicurso);
+    userAtualizado.minicurso = minicurso;
 
-      courseModal.classList.add("hidden");
+    localStorage.setItem("epti_minicurso", minicurso);
+    localStorage.setItem("epti_user", JSON.stringify(userAtualizado));
 
-      toast("Minicurso salvo com sucesso!");
-    } catch (error) {
-      console.error(error);
+    state.user = userAtualizado;
 
-      toast("Não foi possível salvar o minicurso agora.", "error");
-    }
-  });
+    renderCurrentCourse(minicurso);
+    await loadMinicursos();
+
+    courseModal.classList.add("hidden");
+
+    toast(data.message || "Minicurso salvo com sucesso!");
+  } catch (error) {
+    console.error(error);
+    toast(error.message || "Não foi possível salvar o minicurso agora.", "error");
+    await loadMinicursos();
+  } finally {
+    button.classList.remove("course-loading");
+  }
 });
 
+renderCourseOptions();
 restoreSession();

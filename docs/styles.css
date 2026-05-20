@@ -1376,3 +1376,43 @@ tr:hover td {
     margin-top: 18px;
   }
 }
+/* Estado das vagas dos minicursos */
+.course-list button {
+  display: grid;
+  gap: 6px;
+}
+
+.course-list button strong {
+  font-size: 1rem;
+}
+
+.course-list button span {
+  color: var(--muted);
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.course-list button.course-selected {
+  border-color: rgba(46, 230, 166, 0.75);
+  background: rgba(46, 230, 166, 0.12);
+}
+
+.course-list button.course-selected span {
+  color: #8ff7d0;
+}
+
+.course-list button.course-full,
+.course-list button:disabled.course-full {
+  border-color: rgba(255, 89, 100, 0.7);
+  background: rgba(255, 89, 100, 0.12);
+  opacity: 1;
+}
+
+.course-list button.course-full span,
+.course-list button:disabled.course-full span {
+  color: #ff9aa4;
+}
+
+.course-list button.course-loading {
+  opacity: .7;
+}
